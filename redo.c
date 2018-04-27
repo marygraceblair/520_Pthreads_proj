@@ -1,9 +1,14 @@
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
+#include <pthread.h>
+#define NUM_THREADS 2
 char **line;
 char * str[10000];
 char  ret[4000];
 char * results[10000];
+pthread_mutex_t str_mutex;
+pthread_mutex_t results_mutex;
 int ReadFile (char *c)
 {
 //	printf("PRINT STATEMENT FOR DEBUGGING IN READ FILE");
@@ -107,6 +112,18 @@ char* lcs(char* s1, char* s2)
 	return set;
 }
 
+void *runLCS(void *mySection)
+{
+    int j,k;
+    for (j = 0; j < 38; j++)
+    {
+        char *A = line[j];
+        char *B = line[j+1];
+        char *answer = lcs(A,B); 
+        strcpy( results[j], answer); 	
+    } 
+}
+
 int main()
 {
     char * c = "one_word_line.txt";
@@ -120,6 +137,7 @@ int main()
         {
             results[i] = malloc(sizeof(char) * 4000);
         }
+        /*
         int j,k;
         for (j = 0; j < 38; j++)
         {
@@ -128,6 +146,7 @@ int main()
                 char *answer = lcs(A,B); 
                 strcpy( results[j], answer); 	
         }     
+        */
         PrintResults();
     }
     else
