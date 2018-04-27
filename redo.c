@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <pthread.h>
 #define NUM_THREADS 2
+#define ARRAY_SIZE 8000000
 char **line;
 char * str[10000];
 char  ret[4000];
@@ -24,8 +25,6 @@ int ReadFile (char *c)
 	for( i = 0; i < maxlines; i++ ) {
 		line[i] = malloc( 2001 );
 	}
-
-
 // Read in the lines from the data file
 
 	fd = fopen( c, "r" );
@@ -114,30 +113,72 @@ char* lcs(char* s1, char* s2)
 
 void *runLCS(void *mySection)
 {
-    int j,k;
-    for (j = 0; j < 38; j++)
+    int i,j,k;
+    int startPos = ((int) mySection) * (ARRAY_SIZE / NUM_THREADS);
+    int endPos = startPos + (ARRAY_SIZE / NUM_THREADS);
+    
+    int numTimes = endPos - startPos; 
+    //char stringA[numTimes][4000]; 
+    //char stringB[numTimes][4000]; 
+
+    char **stringA = malloc(numTimes * sizeof(char *)); // Allocate row pointers
+    for(i = 0; i < numTimes; i++)
+          stringA[i] = malloc(4000 * sizeof(char));  // Allocate each row separately
+
+    char **stringB = malloc(numTimes * sizeof(char *)); // Allocate row pointers
+    for(i = 0; i < numTimes; i++)
+          stringB[i] = malloc(4000 * sizeof(char));  // Allocate each row separately
+
+    
+    pthread_mutex_lock(&str_mutex);
+    for (j = startPos; j < endPos; j++)
     {
-        char *A = line[j];
-        char *B = line[j+1];
-        char *answer = lcs(A,B); 
+        stringA[j]= line[j];
+        stringB[j]= line[j+1];
+    }
+    pthread_mutex_unlock(&str_mutex);
+
+    pthread_mutex_lock(&results_mutex);
+    for (j = startPos; j < endPos; j++)
+    {
+        char *answer = lcs(stringA[j],stringB[j]); 
         strcpy( results[j], answer); 	
     } 
+    pthread_mutex_unlock(&results_mutex);
+    pthread_exit(NULL);
 }
 
 int main()
 {
+    void *status;
     char * c = "one_word_line.txt";
     printf("before print");
     int success = ReadFile(c);
+    pthread_t threads[NUM_THREADS];
+    pthread_attr_t attr;
+    pthread_attr_init(&attr);
+    pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
+    pthread_mutex_init(&str_mutex, NULL);
+    pthread_mutex_init(&results_mutex, NULL);
     if (success >= 0 )
     {
-        int i;
+        int i, rc;
         //initializing the results
         for(i = 0; i<38; i++ )
         {
             results[i] = malloc(sizeof(char) * 4000);
         }
-        /*
+
+        for (i = 0; i < NUM_THREADS; i++ ) 
+        {
+          rc = pthread_create(&threads[i], &attr, runLCS, (void *)i);
+          if (rc) 
+          {
+            printf("ERROR; return code from pthread_create() is %d\n", rc);
+            exit(-1);
+          }
+        }
+/*
         int j,k;
         for (j = 0; j < 38; j++)
         {
@@ -147,6 +188,17 @@ int main()
                 strcpy( results[j], answer); 	
         }     
         */
+        
+        pthread_attr_destroy(&attr);
+        for(i=0; i<NUM_THREADS; i++) {
+             rc = pthread_join(threads[i], &status);
+             if (rc) {
+                   printf("ERROR; return code from pthread_join() is %d\n", rc);
+                   exit(-1);
+             }
+        }
+        pthread_mutex_destroy(&str_mutex);
+        pthread_mutex_destroy(&results_mutex);
         PrintResults();
     }
     else
